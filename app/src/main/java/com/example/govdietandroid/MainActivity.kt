@@ -5,8 +5,11 @@ import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,16 +42,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil.compose.rememberImagePainter
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+
 
 
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView // WebView 인스턴스를 저장하기 위한 변수
     var currentGbdValue: String = ""
+    private var currentImgUrl = mutableStateOf("")
 
-    //private var rcList = mutableListOf<String>()
     private var rcOptions = mutableStateOf(listOf<Pair<String, String>>())
 
     private var gbdOptions = mutableListOf<Pair<String, String>>() // value, text 쌍을 저장
@@ -56,6 +62,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val showDialog = remember { mutableStateOf(false) }
+            Text(currentImgUrl.value)
             MainScreen(showDialog)
             SettingsDialog(gbdOptions, showDialog) { gbdValue ->
                 currentGbdValue = gbdValue
@@ -85,9 +92,11 @@ class MainActivity : ComponentActivity() {
             // 여기에 나머지 컨텐츠 배치
             Column(modifier = Modifier.padding(paddingValues)) {
                 MainWebView(showDialog) { gbdValue ->  // 이 부분에 onGbdSelected 콜백 함수 전달
-                    loadWebViewWithGbd(gbdValue)
+                    loadWebViewWithGbd(gbdValue) // URL 바탕 로딩
                     showDialog.value = false // 설정 창 닫기
                 }
+                Text(currentImgUrl.value)
+                DisplayImage(imageUrl = currentImgUrl.value)
                 DynamicButtonList()
             }
         }
@@ -103,7 +112,7 @@ class MainActivity : ComponentActivity() {
                 gbdOptions.add(option)
             }
         }
-        //Box {
+
         AndroidView(
             modifier = Modifier.fillMaxHeight(0.9f),
             factory = { context ->
@@ -112,6 +121,9 @@ class MainActivity : ComponentActivity() {
                     settings.javaScriptEnabled = true
                     addJavascriptInterface(javascriptInterface, "HTMLViewer")
                     loadUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do")
+
+                    // 웹뷰 크기를 0으로 설정
+                    this.layoutParams = FrameLayout.LayoutParams(0, 0)
                 }
             }
         )
@@ -131,10 +143,19 @@ class MainActivity : ComponentActivity() {
             val javaScriptInterfaceForRC =
                 JavaScriptInterfaceForRC(upperCode = gbdValue) { newRcOptions ->
                     // rcValue를 처리하는 로직
-                    //rcOptions.value = listOf<Pair<String, String>>()
                     rcOptions.value = rcOptions.value + newRcOptions
                 }
             addJavascriptInterface(javaScriptInterfaceForRC, "RCInterface")
+
+            val javaScriptInterfaceForImg =
+                JavaScriptInterfaceForImg { imgSrc ->
+                // 이미지 소스 URL을 처리하는 로직
+                //println("이미지 소스 URL :"+imgSrc)
+            }
+            addJavascriptInterface(javaScriptInterfaceForImg, "ImgInterface")
+
+
+
             loadUrl(url)
         }
     }
@@ -152,6 +173,12 @@ class MainActivity : ComponentActivity() {
             // rc 값을 가져오는 JavaScript 실행
             view.evaluateJavascript(
                 "javascript:window.RCInterface.processHTMLForRC(document.documentElement.outerHTML);",
+                null
+            )
+
+            // 이미지 URL을 가져오는 JavaScript 실행
+            view.evaluateJavascript(
+                "javascript:window.ImgInterface.processHTMLForImg(document.documentElement.outerHTML);",
                 null
             )
         }
@@ -197,7 +224,6 @@ class MainActivity : ComponentActivity() {
                     //println("RC Value: $value, Text: $text")
                     if (value.isNotEmpty()) {
                         println(value + " " + title)
-                        //println(title)
                         updateRcOptions(Pair(value, title))
                     }
                 }
@@ -205,24 +231,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    //HTML에서 RC 값 추출
+    //HTML에서 IMG 값 추출
     inner class JavaScriptInterfaceForImg(
         private val updateImgSrc: (String) -> Unit
     ) {
-        @SuppressLint("NotConstructor")
+        //@SuppressLint("NotConstructor")
         @JavascriptInterface
-        fun JavaScriptInterfaceForImg(html: String) {
+        fun processHTMLForImg(html: String) {
             lifecycleScope.launch {
                 val doc: Document = Jsoup.parse(html)
                 val imgElement = doc.select("img[src][data-id='diet']").first()
 
-                println("JavaScriptInterfaceForRC start")
+                println("JavaScriptInterfaceForImg start")
                 imgElement?.let {
                     val imgSrc = it.attr("src")
                     println("Image Source: $imgSrc")
+                    currentImgUrl.value  = imgSrc
+
                     updateImgSrc(imgSrc)
                 }
             }
+        }
+    }
+
+    @Composable
+    fun DisplayImage(imageUrl: String?) {
+        imageUrl?.let { url ->
+            println("DisplayImage img URL : " + imageUrl)
+            val painter = rememberImagePainter(data = "https://gbmo.go.kr" + url)
+            Image(
+                painter = painter,
+                contentDescription = null, // 적절한 설명을 제공하시면 좋습니다.
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop // 이미지 스케일 조정
+            )
         }
     }
 
