@@ -9,6 +9,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -51,26 +52,25 @@ import org.jsoup.nodes.Document
 
 
 class MainActivity : ComponentActivity() {
+    private val myViewModel: MyViewModel by viewModels()
+
     private lateinit var webView: WebView // WebView 인스턴스를 저장하기 위한 변수
-    var currentGbdValue: String = ""
-    private var currentImgUrl = mutableStateOf("")
-
-    private var rcOptions = mutableStateOf(listOf<Pair<String, String>>())
-
-    private var gbdOptions = mutableListOf<Pair<String, String>>() // value, text 쌍을 저장
+//    var currentGbdValue = myViewModel.currentGbdValue.value
+//    var currentImgUrl = myViewModel.currentImgUrl.value
+//    var rcOptions = myViewModel.rcOptions.value
+//    var gbdOptions = myViewModel.gbdOptions.value
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val showDialog = remember { mutableStateOf(false) }
-            Text(currentImgUrl.value)
+            Text(myViewModel.currentImgUrl.value)
             MainScreen(showDialog)
-            SettingsDialog(gbdOptions, showDialog) { gbdValue ->
-                currentGbdValue = gbdValue
+            SettingsDialog( myViewModel.gbdOptions.value, showDialog) { gbdValue ->
+                myViewModel.currentGbdValue.value = gbdValue
                 loadWebViewWithGbd(gbdValue)
                 // 이곳에 버튼눌렀을 때 이미지 가져오는 함수 추가?
                 showDialog.value = false // 설정 창 닫기
             }
-
         }
     }
 
@@ -94,71 +94,144 @@ class MainActivity : ComponentActivity() {
                 MainWebView(showDialog) { gbdValue ->  // 이 부분에 onGbdSelected 콜백 함수 전달
                     loadWebViewWithGbd(gbdValue) // URL 바탕 로딩
                     showDialog.value = false // 설정 창 닫기
+                    println("MainWebView callback")
+                    // 여기 점검하기
                 }
-                Text(currentImgUrl.value)
-                DisplayImage(imageUrl = currentImgUrl.value)
-                DynamicButtonList()
+                //Text(currentImgUrl.value)
+                DisplayImage(imageUrl = myViewModel.currentImgUrl.value)
+                DynamicButtonList(rcOptions = myViewModel.rcOptions.value) { value ->
+                    //updateWebViewUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=$myViewModel.currentGbdValue.value&rc=$value")
+                    loadWebViewWithRC(gbdValue = myViewModel.currentGbdValue.value, RcValue = value) // URL 바탕 로딩
+                }
             }
         }
     }
 
-
-    @SuppressLint("SetJavaScriptEnabled")
     @Composable
     fun MainWebView(showDialog: MutableState<Boolean>, onGbdSelected: (String) -> Unit) {
 
         val javascriptInterface = JavaScriptInterface { option ->
-            if (!gbdOptions.contains(option)) {
-                gbdOptions.add(option)
+            if (!myViewModel.gbdOptions.value.contains(option)) {
+                myViewModel.addGbdOption(option)
+                //println("gbdOptions.add")
             }
         }
 
         AndroidView(
-            modifier = Modifier.fillMaxHeight(0.9f),
+            modifier = Modifier.fillMaxHeight(0.0f),
             factory = { context ->
                 WebView(context).also { webView = it }.apply {
                     webViewClient = CustomWebViewClient(javascriptInterface)
                     settings.javaScriptEnabled = true
                     addJavascriptInterface(javascriptInterface, "HTMLViewer")
+                    println("loadURL in AndroidView")
                     loadUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do")
 
-                    // 웹뷰 크기를 0으로 설정
-                    this.layoutParams = FrameLayout.LayoutParams(0, 0)
                 }
             }
         )
-
-//        Button(onClick = { showDialog.value = true }) {
-//            Text("설정")
-//        }
-        //}
-
     }
 
     private fun loadWebViewWithGbd(gbdValue: String) {
-        rcOptions.value = listOf<Pair<String, String>>()
-
+        myViewModel.rcOptions.value = listOf<Pair<String, String>>()
+        println("loadWebViewWithGbd start")
+        println("gbdValue: " + gbdValue)
         val url = "https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=$gbdValue"
         webView.apply {
             val javaScriptInterfaceForRC =
                 JavaScriptInterfaceForRC(upperCode = gbdValue) { newRcOptions ->
                     // rcValue를 처리하는 로직
-                    rcOptions.value = rcOptions.value + newRcOptions
+                    myViewModel.rcOptions.value = myViewModel.rcOptions.value + newRcOptions
+                    println(myViewModel.rcOptions.value)
                 }
             addJavascriptInterface(javaScriptInterfaceForRC, "RCInterface")
 
             val javaScriptInterfaceForImg =
                 JavaScriptInterfaceForImg { imgSrc ->
                 // 이미지 소스 URL을 처리하는 로직
-                //println("이미지 소스 URL :"+imgSrc)
+                println("이미지 소스 URL :"+imgSrc)
+                myViewModel.updateCurrentImgUrl(newUrl = imgSrc)
             }
             addJavascriptInterface(javaScriptInterfaceForImg, "ImgInterface")
-
-
-
             loadUrl(url)
         }
     }
+
+    private fun loadWebViewWithRC(gbdValue: String, RcValue: String) {
+        myViewModel.rcOptions.value = listOf<Pair<String, String>>()
+        println("loadWebViewWithGbd start")
+        println("gbdValue: " + gbdValue)
+        val url = "https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=$gbdValue&rc=$RcValue"
+        webView.apply {
+            val javaScriptInterfaceForRC =
+                JavaScriptInterfaceForRC(upperCode = gbdValue) { newRcOptions ->
+                    // rcValue를 처리하는 로직
+                    myViewModel.rcOptions.value = myViewModel.rcOptions.value + newRcOptions
+                    println(myViewModel.rcOptions.value)
+                }
+            addJavascriptInterface(javaScriptInterfaceForRC, "RCInterface")
+
+            val javaScriptInterfaceForImg =
+                JavaScriptInterfaceForImg { imgSrc ->
+                    // 이미지 소스 URL을 처리하는 로직
+                    println("이미지 소스 URL :"+imgSrc)
+                    myViewModel.updateCurrentImgUrl(newUrl = imgSrc)
+                }
+            addJavascriptInterface(javaScriptInterfaceForImg, "ImgInterface")
+            //loadUrl(url)
+            updateWebViewUrl(url)
+        }
+    }
+
+
+    // URL 업데이트를 위한 함수
+    private fun updateWebViewUrl(newUrl: String) {
+        myViewModel.rcOptions.value = listOf<Pair<String, String>>()  // 이거 왜있는지 점검하기
+        webView.loadUrl(newUrl)
+    }
+
+
+
+    @Composable
+    fun SettingsDialog(
+        gbdOptions: List<Pair<String, String>>,
+        showDialog: MutableState<Boolean>,
+        onGbdSelected: (String) -> Unit
+    ) {
+        if (showDialog.value) {
+            AlertDialog(
+                onDismissRequest = { showDialog.value = false },
+                title = { Text("설정") },
+                text = {
+                    LazyColumn { // LazyColumn을 사용하여 스크롤 가능한 리스트 생성
+                        items(gbdOptions) { option ->
+                            val (value, text) = option
+                            Row {
+                                Text("$text")
+                                Spacer(Modifier.width(8.dp))
+                                Button(onClick = { onGbdSelected(value) }) {
+                                    Text("이동")
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showDialog.value = false }) {
+                        Text("닫기")
+                    }
+                }
+            )
+        }
+    }
+
+
+
+
+
+
+
+
 
     class CustomWebViewClient(
         val javaScriptInterface: JavaScriptInterface
@@ -223,7 +296,7 @@ class MainActivity : ComponentActivity() {
                     val title = element.attr("title")
                     //println("RC Value: $value, Text: $text")
                     if (value.isNotEmpty()) {
-                        println(value + " " + title)
+                        //println(value + " " + title)
                         updateRcOptions(Pair(value, title))
                     }
                 }
@@ -243,92 +316,15 @@ class MainActivity : ComponentActivity() {
                 val imgElement = doc.select("img[src][data-id='diet']").first()
 
                 println("JavaScriptInterfaceForImg start")
+                println(imgElement)
                 imgElement?.let {
                     val imgSrc = it.attr("src")
                     println("Image Source: $imgSrc")
-                    currentImgUrl.value  = imgSrc
-
+                    //myViewModel.currentImgUrl.value  = imgSrc
+                    //myViewModel.updateCurrentImgUrl(newUrl = imgSrc)
                     updateImgSrc(imgSrc)
                 }
             }
-        }
-    }
-
-    @Composable
-    fun DisplayImage(imageUrl: String?) {
-        imageUrl?.let { url ->
-            println("DisplayImage img URL : " + imageUrl)
-            val painter = rememberImagePainter(data = "https://gbmo.go.kr" + url)
-            Image(
-                painter = painter,
-                contentDescription = null, // 적절한 설명을 제공하시면 좋습니다.
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop // 이미지 스케일 조정
-            )
-        }
-    }
-
-    // URL 업데이트를 위한 함수
-    private fun updateWebViewUrl(newUrl: String) {
-        rcOptions.value = listOf<Pair<String, String>>()
-        webView.loadUrl(newUrl)
-    }
-
-    @Composable
-    fun DynamicButtonList() {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                //.padding(horizontal = 5.dp)  // 양쪽으로 패딩 추가
-                .padding(vertical = 8.dp, horizontal = 5.dp) // 양쪽으로 패딩 추가
-                .horizontalScroll(rememberScrollState())
-        ) {
-            rcOptions.value.forEach { (value, title) ->
-                if (title != "") {
-                    Button(onClick = {
-                        updateWebViewUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=$currentGbdValue&rc=$value")
-                    }, modifier = Modifier
-                        .padding()
-                    ) {
-                        Text(title)
-                    }
-                }
-
-            }
-        }
-    }
-
-
-    @Composable
-    fun SettingsDialog(
-        gbdOptions: List<Pair<String, String>>,
-        showDialog: MutableState<Boolean>,
-        onGbdSelected: (String) -> Unit
-    ) {
-        if (showDialog.value) {
-            AlertDialog(
-                onDismissRequest = { showDialog.value = false },
-                title = { Text("설정") },
-                text = {
-                    LazyColumn { // LazyColumn을 사용하여 스크롤 가능한 리스트 생성
-                        items(gbdOptions) { option ->
-                            val (value, text) = option
-                            Row {
-                                Text("$text")
-                                Spacer(Modifier.width(8.dp))
-                                Button(onClick = { onGbdSelected(value) }) {
-                                    Text("이동")
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = { showDialog.value = false }) {
-                        Text("닫기")
-                    }
-                }
-            )
         }
     }
 }
