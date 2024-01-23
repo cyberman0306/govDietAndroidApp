@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModel
 
 
 class MyViewModel : ViewModel() {
-    private val _currentGbdValue = mutableStateOf("") // MutableState를 private으로 선언
+    private val _currentGbdValue = mutableStateOf("CD003") // MutableState를 private으로 선언
     val currentGbdValue: MutableState<String> = _currentGbdValue // 읽기 전용 State로 외부에 노출
 
     private val _currentImgUrl = mutableStateOf("")

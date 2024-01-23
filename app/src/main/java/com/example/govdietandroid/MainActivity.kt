@@ -1,17 +1,12 @@
 package com.example.govdietandroid
 
-import android.annotation.SuppressLint
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.FrameLayout
-import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,12 +14,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Text
@@ -43,9 +36,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberImagePainter
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
@@ -63,13 +55,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val showDialog = remember { mutableStateOf(false) }
-            Text(myViewModel.currentImgUrl.value)
+            //Text(myViewModel.currentImgUrl.value)
             MainScreen(showDialog)
             SettingsDialog( myViewModel.gbdOptions.value, showDialog) { gbdValue ->
-                myViewModel.currentGbdValue.value = gbdValue
+                myViewModel.updateCurrentImgUrl("")
+                myViewModel.updateCurrentGbdValue(gbdValue)
+                //myViewModel.currentGbdValue.value = gbdValue
                 loadWebViewWithGbd(gbdValue)
-                // 이곳에 버튼눌렀을 때 이미지 가져오는 함수 추가?
                 showDialog.value = false // 설정 창 닫기
+
+                // 지정한 gbd 저장함수 추가
             }
         }
     }
@@ -90,18 +85,34 @@ class MainActivity : ComponentActivity() {
             }
         ) { paddingValues ->
             // 여기에 나머지 컨텐츠 배치
-            Column(modifier = Modifier.padding(paddingValues)) {
-                MainWebView(showDialog) { gbdValue ->  // 이 부분에 onGbdSelected 콜백 함수 전달
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+            ) {
+                MainWebView(showDialog) { gbdValue ->
+                    //여기작동안함
                     loadWebViewWithGbd(gbdValue) // URL 바탕 로딩
                     showDialog.value = false // 설정 창 닫기
                     println("MainWebView callback")
                     // 여기 점검하기
                 }
-                //Text(currentImgUrl.value)
-                DisplayImage(imageUrl = myViewModel.currentImgUrl.value)
+                Box(modifier = Modifier
+                    .fillMaxWidth(1f)
+                    .fillMaxHeight(0.9f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (myViewModel.currentImgUrl.value != "") {
+                        DisplayImage(imageUrl = myViewModel.currentImgUrl.value)
+                    } else {
+                        progressView()
+                    }
+                }
                 DynamicButtonList(rcOptions = myViewModel.rcOptions.value) { value ->
-                    //updateWebViewUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=$myViewModel.currentGbdValue.value&rc=$value")
+                    myViewModel.updateCurrentImgUrl("")
                     loadWebViewWithRC(gbdValue = myViewModel.currentGbdValue.value, RcValue = value) // URL 바탕 로딩
+
+                    // 마지막으로 누른것 바탕으로 GBD, rc 저장해서 가지고 있기 함수 추가
                 }
             }
         }
@@ -110,10 +121,10 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun MainWebView(showDialog: MutableState<Boolean>, onGbdSelected: (String) -> Unit) {
 
-        val javascriptInterface = JavaScriptInterface { option ->
+        val javascriptInterfaceGetGbdInfo = JavaScriptInterfaceGetGbdInfo { option ->
             if (!myViewModel.gbdOptions.value.contains(option)) {
                 myViewModel.addGbdOption(option)
-                //println("gbdOptions.add")
+                println("gbdOptions.add")
             }
         }
 
@@ -121,12 +132,26 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxHeight(0.0f),
             factory = { context ->
                 WebView(context).also { webView = it }.apply {
-                    webViewClient = CustomWebViewClient(javascriptInterface)
+                    webViewClient = CustomWebViewClient(javascriptInterfaceGetGbdInfo)
                     settings.javaScriptEnabled = true
-                    addJavascriptInterface(javascriptInterface, "HTMLViewer")
+                    addJavascriptInterface(javascriptInterfaceGetGbdInfo, "HTMLViewer")
                     println("loadURL in AndroidView")
-                    loadUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do")
+                    loadUrl("https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=${myViewModel.currentGbdValue.value}")
 
+                    val javaScriptInterfaceForRC =
+                        JavaScriptInterfaceForRC(upperCode = myViewModel.currentGbdValue.value) { newRcOptions ->
+                            //rcValue를 처리하는 로직
+                            myViewModel.rcOptions.value = myViewModel.rcOptions.value + newRcOptions
+                            println(myViewModel.rcOptions.value)
+                        }
+                    addJavascriptInterface(javaScriptInterfaceForRC, "RCInterface")
+
+                    val javaScriptInterfaceForImg =
+                        JavaScriptInterfaceForImg { imgSrc ->
+                            println("이미지 소스 URL:" + imgSrc)
+                            myViewModel.updateCurrentImgUrl(newUrl = imgSrc)
+                        }
+                    addJavascriptInterface(javaScriptInterfaceForImg, "ImgInterface")
                 }
             }
         )
@@ -142,7 +167,7 @@ class MainActivity : ComponentActivity() {
                 JavaScriptInterfaceForRC(upperCode = gbdValue) { newRcOptions ->
                     // rcValue를 처리하는 로직
                     myViewModel.rcOptions.value = myViewModel.rcOptions.value + newRcOptions
-                    println(myViewModel.rcOptions.value)
+                    //println(myViewModel.rcOptions.value)
                 }
             addJavascriptInterface(javaScriptInterfaceForRC, "RCInterface")
 
@@ -158,27 +183,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadWebViewWithRC(gbdValue: String, RcValue: String) {
-        myViewModel.rcOptions.value = listOf<Pair<String, String>>()
-        println("loadWebViewWithGbd start")
+        println("loadWebViewWithRC start")
         println("gbdValue: " + gbdValue)
         val url = "https://gbmo.go.kr/chungsa/dv/dietView/selectDietCalendarView.do?gbd=$gbdValue&rc=$RcValue"
         webView.apply {
-            val javaScriptInterfaceForRC =
-                JavaScriptInterfaceForRC(upperCode = gbdValue) { newRcOptions ->
-                    // rcValue를 처리하는 로직
-                    myViewModel.rcOptions.value = myViewModel.rcOptions.value + newRcOptions
-                    println(myViewModel.rcOptions.value)
-                }
-            addJavascriptInterface(javaScriptInterfaceForRC, "RCInterface")
 
-            val javaScriptInterfaceForImg =
-                JavaScriptInterfaceForImg { imgSrc ->
-                    // 이미지 소스 URL을 처리하는 로직
-                    println("이미지 소스 URL :"+imgSrc)
-                    myViewModel.updateCurrentImgUrl(newUrl = imgSrc)
-                }
-            addJavascriptInterface(javaScriptInterfaceForImg, "ImgInterface")
-            //loadUrl(url)
+            removeJavascriptInterface("HTMLViewer")
+            removeJavascriptInterface("RCInterface")
             updateWebViewUrl(url)
         }
     }
@@ -186,7 +197,6 @@ class MainActivity : ComponentActivity() {
 
     // URL 업데이트를 위한 함수
     private fun updateWebViewUrl(newUrl: String) {
-        myViewModel.rcOptions.value = listOf<Pair<String, String>>()  // 이거 왜있는지 점검하기
         webView.loadUrl(newUrl)
     }
 
@@ -234,7 +244,7 @@ class MainActivity : ComponentActivity() {
 
 
     class CustomWebViewClient(
-        val javaScriptInterface: JavaScriptInterface
+        val javaScriptInterfaceGetGbdInfo: JavaScriptInterfaceGetGbdInfo
     ) : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String) {
             super.onPageFinished(view, url)
@@ -257,7 +267,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    inner class JavaScriptInterface(private val updateOptions: (Pair<String, String>) -> Unit) {
+    inner class JavaScriptInterfaceGetGbdInfo(private val updateOptions: (Pair<String, String>) -> Unit) {
         @JavascriptInterface
         fun processHTML(html: String) {
             lifecycleScope.launch {
@@ -272,6 +282,8 @@ class MainActivity : ComponentActivity() {
                     //println("Option Value: $value, Text: $text")
                     if (value.isNotEmpty()) {
                         updateOptions(value to text)
+                    } else {
+                        println("gbd element value is empty")
                     }
                 }
 
@@ -308,7 +320,6 @@ class MainActivity : ComponentActivity() {
     inner class JavaScriptInterfaceForImg(
         private val updateImgSrc: (String) -> Unit
     ) {
-        //@SuppressLint("NotConstructor")
         @JavascriptInterface
         fun processHTMLForImg(html: String) {
             lifecycleScope.launch {
@@ -316,12 +327,8 @@ class MainActivity : ComponentActivity() {
                 val imgElement = doc.select("img[src][data-id='diet']").first()
 
                 println("JavaScriptInterfaceForImg start")
-                println(imgElement)
                 imgElement?.let {
                     val imgSrc = it.attr("src")
-                    println("Image Source: $imgSrc")
-                    //myViewModel.currentImgUrl.value  = imgSrc
-                    //myViewModel.updateCurrentImgUrl(newUrl = imgSrc)
                     updateImgSrc(imgSrc)
                 }
             }
