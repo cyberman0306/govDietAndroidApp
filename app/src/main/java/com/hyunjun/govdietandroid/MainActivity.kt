@@ -38,6 +38,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
@@ -51,7 +53,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val showDialog = remember { mutableStateOf(false) }
-            //SaveAndLoadFunc("")
             MainScreen(showDialog)
             SettingsDialog( myViewModel.gbdOptions.value, showDialog) { gbdValue ->
                 myViewModel.updateCurrentImgUrl("")
@@ -104,12 +105,12 @@ class MainActivity : ComponentActivity() {
                         progressView()
                     }
                 }
-                DynamicButtonList(rcOptions = myViewModel.rcOptions.value) { value ->
-                    myViewModel.updateCurrentImgUrl("")
-                    loadWebViewWithRC(gbdValue = myViewModel.currentGbdValue.value, RcValue = value) // URL 바탕 로딩
-
-                    // 마지막으로 누른것 바탕으로 GBD, rc 저장해서 가지고 있기 함수 추가
-                }
+//                DynamicButtonList(rcOptions = myViewModel.rcOptions.value) { value ->
+//                    myViewModel.updateCurrentImgUrl("")
+//                    loadWebViewWithRC(gbdValue = myViewModel.currentGbdValue.value, RcValue = value) // URL 바탕 로딩
+//
+//                    // 마지막으로 누른것 바탕으로 GBD, rc 저장해서 가지고 있기 함수 추가
+//                }
                 SaveDateShowPage()
 
             }

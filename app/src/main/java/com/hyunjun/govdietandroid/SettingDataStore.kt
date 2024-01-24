@@ -20,11 +20,11 @@ import com.hyunjun.govdietandroid.SettingDataStore.Companion.dataStore
 class SettingDataStore {
     companion object {
         val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
-
     }
 }
-
 val bootingGbdValue_key = stringPreferencesKey("bootingGbdValue_key")
+
+
 @Composable
 fun SaveDateShowPage() {
     val dataStore = (LocalContext.current).dataStore
@@ -32,13 +32,17 @@ fun SaveDateShowPage() {
 
     LaunchedEffect(Unit) {
         dataStore.data.collect { preferences ->
+
             testString.value = preferences[bootingGbdValue_key] ?: "CD003"
+            println("LaunchedEffect(Unit)," +testString.value)
         }
     }
 
     LaunchedEffect(testString.value) {
         dataStore.edit { preferences ->
+
             preferences[bootingGbdValue_key] = testString.value
+            println("LaunchedEffect(testString.value)" +testString.value)
         }
     }
 
@@ -50,6 +54,7 @@ fun SaveDateShowPage() {
         Text(testString.value)
     }
 }
+
 
 @Composable
 fun SaveAndLoadFunc(startValue: String) {
@@ -68,3 +73,4 @@ fun SaveAndLoadFunc(startValue: String) {
         }
     }
 }
+
