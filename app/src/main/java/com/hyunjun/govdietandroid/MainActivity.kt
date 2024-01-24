@@ -1,4 +1,4 @@
-package com.example.govdietandroid
+package com.hyunjun.govdietandroid
 
 import android.os.Bundle
 import android.webkit.JavascriptInterface
@@ -47,15 +47,11 @@ class MainActivity : ComponentActivity() {
     private val myViewModel: MyViewModel by viewModels()
 
     private lateinit var webView: WebView // WebView 인스턴스를 저장하기 위한 변수
-//    var currentGbdValue = myViewModel.currentGbdValue.value
-//    var currentImgUrl = myViewModel.currentImgUrl.value
-//    var rcOptions = myViewModel.rcOptions.value
-//    var gbdOptions = myViewModel.gbdOptions.value
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val showDialog = remember { mutableStateOf(false) }
-            //Text(myViewModel.currentImgUrl.value)
+            //SaveAndLoadFunc("")
             MainScreen(showDialog)
             SettingsDialog( myViewModel.gbdOptions.value, showDialog) { gbdValue ->
                 myViewModel.updateCurrentImgUrl("")
@@ -114,6 +110,8 @@ class MainActivity : ComponentActivity() {
 
                     // 마지막으로 누른것 바탕으로 GBD, rc 저장해서 가지고 있기 함수 추가
                 }
+                SaveDateShowPage()
+
             }
         }
     }

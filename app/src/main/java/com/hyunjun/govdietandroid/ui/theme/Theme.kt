@@ -1,4 +1,4 @@
-package com.example.govdietandroid.ui.theme
+package com.hyunjun.govdietandroid.ui.theme
 
 import android.app.Activity
 import android.os.Build
